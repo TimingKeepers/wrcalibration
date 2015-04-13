@@ -1,0 +1,4 @@
+[submodule "pts_core"]
+	path = pts_core
+	url = https://felipet@bitbucket.org/sevensols/pts_core.git
+	ignore = all
