@@ -88,7 +88,6 @@ class WR_LEN(WR_Device) :
         (sfp_sn, port-1, delta_tx, delta_rx, beta)
         self.bus.cmd_w(cmd, False)
         #TODO: check if insertion was succesfull
-        time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
 
     # ------------------------------------------------------------------------ #
 
@@ -102,7 +101,6 @@ class WR_LEN(WR_Device) :
         '''
 
         self.bus.cmd_w("sfp erase")
-        time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
 
     # ------------------------------------------------------------------------ #
 
@@ -145,7 +143,6 @@ class WR_LEN(WR_Device) :
         This is equivalent to "init erase"
         '''
         self.bus.cmd_w("init erase",False)
-        time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
 
     # ------------------------------------------------------------------------ #
 
@@ -171,10 +168,7 @@ class WR_LEN(WR_Device) :
 
         This method is equivalent to "sfp show"
         '''
-        ret = self.bus.cmd_w("sfp show")
-        time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
-
-        return ret
+        return self.bus.cmd_w("sfp show")
 
     # ------------------------------------------------------------------------ #
 
@@ -183,7 +177,6 @@ class WR_LEN(WR_Device) :
         Method to stop ptp
         '''
         self.bus.cmd_w("ptp stop")
-        time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
 
     # ------------------------------------------------------------------------ #
 
@@ -194,4 +187,76 @@ class WR_LEN(WR_Device) :
         When ptp is already started it works as a restart.
         '''
         self.bus.cmd_w("ptp start")
-        time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
+
+    # ------------------------------------------------------------------------ #
+
+    def raw_status(self) :
+        '''
+        Method to retrieve status info from device.
+
+        This is equivalent to "stat" command in WR-LEN
+        '''
+        return self.bus.cmd_w("stat")
+
+    # ------------------------------------------------------------------------ #
+
+    def in_trackphase(self) :
+        '''
+        Method to ask a device if servo state is TRACK PHASE.
+
+        Returns:
+            True if servo state is TRACK PHASE.
+        '''
+        stat = self.raw_status()
+
+        for i in stat.split(" ") :
+            if "ss" in i :
+                if "'TRACK_PHASE'" == i.split(":")[-1] :
+                    return True
+                else : return False
+
+    # ------------------------------------------------------------------------ #
+
+    def get_rtt(self) :
+        '''
+        Method to ask the device for Round-trip time value (in ps).
+
+        Returns:
+            Round-trip time value in ps.
+        '''
+        stat = self.raw_status()
+
+        for i in stat.split(" ") :
+            if "mu" in i :
+                return int(i.split(":")[-1])
+
+        #TODO: Lanzar excepción
+
+    # ------------------------------------------------------------------------ #
+
+    def get_phy_delays(self) :
+        '''
+        Method to ask the device for PHY delays.
+
+        Returns:
+            A dict with two keys: master and slave. Each key has associated
+            a tuple with values (Tx delay, Rx delay), both in ps.
+        '''
+        delays = {}
+        stat = self.raw_status()
+
+        for i in stat.split(" ") :
+            if "dtxm" in i :
+                dtxm = int(i.split(":")[-1])
+            elif "drxm" in i :
+                drxm = int(i.split(":")[-1])
+            elif "dtxs" in i :
+                dtxs = int(i.split(":")[-1])
+            elif "drxs" in i :
+                drxs = int(int(i.split(":")[-1]))
+                break; # drxs is the last value found in stat output so break the loop
+
+        delays['master'] = (dtxm,drxm)
+        delays['slave']  = (dtxs,drxs)
+
+        return delays    

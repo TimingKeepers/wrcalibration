@@ -24,7 +24,7 @@ Abstract class to define the API for WR Devices
 # download it from http://www.gnu.org/licenses/lgpl-2.1.html                   |
 #------------------------------------------------------------------------------|
 
-#---------------------------------------------------------- --------------------
+#-------------------------------------------------------------------------------
 #                                   Import                                    --
 #-------------------------------------------------------------------------------
 # Import system modules
@@ -90,7 +90,7 @@ class WR_Device() :
     @abc.abstractmethod
     def add_init(self, cmd_list) :
         '''
-        Method to add a new command to init script.
+        Abstract method to add a new command to init script.
 
         This method doesn't check if passed commands are valid.
         Is equivalent to "init add <command>"
@@ -102,7 +102,7 @@ class WR_Device() :
     @abc.abstractmethod
     def show_sfp_config(self) :
         '''
-        Method to retrieve sfp configuration database.
+        Abstract method to retrieve sfp configuration database.
 
         This method is equivalent to "sfp show"
         '''
@@ -116,7 +116,40 @@ class WR_Device() :
     @abc.abstractmethod
     def ptp_start(self) :
         '''
-        Method to start/restart ptp
+        Abstract method to start/restart ptp
 
         When ptp is already started it works as a restart.
+        '''
+
+    @abc.abstractmethod
+    def raw_status(self) :
+        '''
+        Abstract method to retrieve status info from device.
+        '''
+
+    @abc.abstractmethod
+    def in_trackphase(self) :
+        '''
+        Abstract method to ask the device if servo state is TRACK PHASE.
+
+        Returns:
+            True if servo state is TRACK PHASE.
+        '''
+
+    @abc.abstractmethod
+    def get_rtt(self) :
+        '''
+        Abstract method to ask the device for Round-trip time value (in ps).
+
+        Returns:
+            Round-trip time value in ps.
+        '''
+
+    @abc.abstractmethod
+    def get_phy_delays(self) :
+        '''
+        Abstract method to ask the device for PHY delays.
+
+        Returns:
+            A tuple with (Tx delay, Rx delay) both in ps.
         '''
