@@ -42,9 +42,9 @@ class WR_LEN(WR_Device) :
     '''
 
     ## Default timeout when writing a command to WR LEN
-    DEF_TIMEOUT = 1
+    DEF_TIMEOUT = 1.5
 
-    def __init__(self, interface, port) :
+    def __init__(self, interface, port, name="WR LEN") :
         '''
         Class constructor
 
@@ -58,12 +58,14 @@ class WR_LEN(WR_Device) :
             pass # Raise ....
 
         self.port = port
-        self.name = "WR LEN"
+        self.name = name
 
         #TODO: Utilizar excepciones aquí
         #try :
-        self.bus = wb_UART(rdtimeout=0.1, wrtimeout=0.1, interchartimeout=0.001)
+        self.bus = wb_UART(rdtimeout=0.1, wrtimeout=0.1, interchartimeout=0.01)
         self.bus.open(self.port)
+
+        self.show_dbg = False
 
         #except Exception, e
 
@@ -86,6 +88,10 @@ class WR_LEN(WR_Device) :
         # Example command : sfp add AXGE-1254-0531 wr0 0 0 0
         cmd = "sfp add %s wr%d %d %d %d" % \
         (sfp_sn, port-1, delta_tx, delta_rx, beta)
+
+        if self.show_dbg :
+            print("%s << %s" % (self.name, cmd))
+
         self.bus.cmd_w(cmd, False)
         #TODO: check if insertion was succesfull
 
@@ -99,8 +105,10 @@ class WR_LEN(WR_Device) :
         Before writing a sfp config when DB is full or if you will to rewrite an
         exisiting config, you must to erase DB.
         '''
-
         self.bus.cmd_w("sfp erase")
+
+        if self.show_dbg :
+            print("%s << %s" % (self.name,"sfp erase"))
 
     # ------------------------------------------------------------------------ #
 
@@ -128,6 +136,10 @@ class WR_LEN(WR_Device) :
         count = 0
         for cmd in cmd_list :
             ret += self.bus.cmd_w(cmd)
+
+            if self.show_dbg :
+                print("%s << %s >> %s" % (self.name,cmd,ret))
+
             time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
 
         count = sum(1 for _ in re.finditer(r'\b%s\b' % re.escape("matched"), ret))
@@ -144,6 +156,9 @@ class WR_LEN(WR_Device) :
         '''
         self.bus.cmd_w("init erase",False)
 
+        if self.show_dbg :
+            print("%s << %s" % (self.name,"init erase"))
+
     # ------------------------------------------------------------------------ #
 
     def add_init(self, cmd_list) :
@@ -158,6 +173,10 @@ class WR_LEN(WR_Device) :
         '''
         for cmd in cmd_list :
             self.bus.cmd_w("init add %s" % cmd,False)
+
+            if self.show_dbg :
+                print("%s << %s" % (self.name,cmd))
+
             time.sleep(self.DEF_TIMEOUT) # Give enough time to WR LEN for processing it!!
 
     # ------------------------------------------------------------------------ #
@@ -178,6 +197,9 @@ class WR_LEN(WR_Device) :
         '''
         self.bus.cmd_w("ptp stop")
 
+        if self.show_dbg :
+            print("%s << %s" % (self.name,"ptp stop"))
+
     # ------------------------------------------------------------------------ #
 
     def ptp_start(self) :
@@ -188,6 +210,9 @@ class WR_LEN(WR_Device) :
         '''
         self.bus.cmd_w("ptp start")
 
+        if self.show_dbg :
+            print("%s << %s" % (self.name,"ptp start"))
+
     # ------------------------------------------------------------------------ #
 
     def raw_status(self) :
@@ -196,6 +221,9 @@ class WR_LEN(WR_Device) :
 
         This is equivalent to "stat" command in WR-LEN
         '''
+        if self.show_dbg :
+            print("%s << %s" % (self.name,"stat"))
+
         return self.bus.cmd_w("stat")
 
     # ------------------------------------------------------------------------ #
@@ -211,6 +239,10 @@ class WR_LEN(WR_Device) :
 
         for i in stat.split(" ") :
             if "ss" in i :
+
+                if self.show_dbg :
+                    print("%s << track phase? >> %s" % (self.name,i.split(":")[-1]))
+
                 if "'TRACK_PHASE'" == i.split(":")[-1] :
                     return True
                 else : return False
@@ -259,4 +291,4 @@ class WR_LEN(WR_Device) :
         delays['master'] = (dtxm,drxm)
         delays['slave']  = (dtxs,drxs)
 
-        return delays    
+        return delays
