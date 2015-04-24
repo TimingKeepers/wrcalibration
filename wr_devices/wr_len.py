@@ -36,6 +36,9 @@ import re
 from pts_core.bridges.wb_uart import *
 from wr_devices.wr_device     import *
 
+# This attribute permits dynamic loading inside wrcalibration class.
+__wrdevice__ = "WR_LEN"
+
 class WR_LEN(WR_Device) :
     '''
     Class to interface with WR LEN device
@@ -155,6 +158,7 @@ class WR_LEN(WR_Device) :
         This is equivalent to "init erase"
         '''
         self.bus.cmd_w("init erase",False)
+        time.sleep(self.DEF_TIMEOUT)
 
         if self.show_dbg :
             print("%s << %s" % (self.name,"init erase"))
@@ -292,3 +296,32 @@ class WR_LEN(WR_Device) :
         delays['slave']  = (dtxs,drxs)
 
         return delays
+
+    # ------------------------------------------------------------------------ #
+
+    def set_slaveport(self, port) :
+        '''
+        Method to set "port" to slave mode.
+
+        Raises:
+            NotValidPort when port doesn't exists in the used device.
+        '''
+        if port != 1 && port != 2 :
+            raise NotValidPort("WR LEN haven't got %d ports." % port)
+        self.bus.cmd_w("mode slave_port%d" % port)
+
+        if self.show_dbg :
+            print("%s << %s" % (self.name,"mode slave_port%d"%port))
+
+
+    # ------------------------------------------------------------------------ #
+
+    def set_master(self) :
+        '''
+        Abstract method to set device to master mode.
+        '''
+        self.bus.cmd_w("mode master")
+        time.sleep(self.DEF_TIMEOUT*2) # Looking PLL takes some time
+
+        if self.show_dbg :
+            print("%s << %s" % (self.name,"mode master"))

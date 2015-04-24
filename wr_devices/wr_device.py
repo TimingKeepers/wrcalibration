@@ -31,6 +31,9 @@ Abstract class to define the API for WR Devices
 import abc
 import enum
 
+# This attribute permits dynamic loading inside wrcalibration class.
+__wrdevice__ = "WR_Device"
+
 class WR_interfaces(enum.Enum) :
     '''
     This class represents the available interfaces for connect with WR devices.
@@ -50,6 +53,18 @@ class WR_Device() :
 
 
     # The following methods must be implemented by a concrete class for a WR device.
+    @abc.abstractmethod
+    def __init__(self, interface, port) :
+        '''
+        Abstract class constructor
+
+        Args:
+            interface (WR_interfaces) : Which interface use to communicate with the device.
+            port (int) : Port (or IP direction) used by WR device.
+
+        Raises:
+            OpenDeviceError
+        '''
 
     @abc.abstractmethod
     def write_sfp_config(self, sfp_sn, port=1, delta_tx = 0, delta_rx = 0, beta = 0) :
@@ -152,4 +167,19 @@ class WR_Device() :
 
         Returns:
             A tuple with (Tx delay, Rx delay) both in ps.
+        '''
+
+    @abc.abstractmethod
+    def set_slaveport(self, port) :
+        '''
+        Abstract method to set "port" to slave mode.
+
+        Raises:
+            NotValidPort
+        '''
+
+    @abc.abstractmethod
+    def set_master(self) :
+        '''
+        Abstract method to set device to master mode.
         '''
