@@ -30,6 +30,9 @@ Abstract class to define the API for a measurement instrument
 # Import system modules
 import abc
 
+# This attribute permits dynamic loading inside wrcalibration class.
+__meas_instr__ = "Calibration Instrument"
+
 class Calibration_instrument() :
     '''
     Calibration instrument API
@@ -49,6 +52,19 @@ class Calibration_instrument() :
     master_chan = ""
 
     # The following methods must be implemented by a concrete class for a WR device.
+
+    @abc.abstractmethod
+    def __init__(self, port, master_chan=None, slave_chan=None) :
+        '''
+        Constructor
+
+        Args:
+            port (int) : Port for the Tektronix FCA3103 using the USB connection.
+            master_chan (int) : Input channel for master's PPS signal.
+            slave_chan (int) : Input channel for slave's PPS signal.
+        '''
+
+    # ------------------------------------------------------------------------ #
 
     @abc.abstractmethod
     def trigger_level(self, v_min=0, v_max=5) :

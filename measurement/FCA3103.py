@@ -34,6 +34,9 @@ import time
 from measurement.calibration_instrument import *
 from measurement.tektronix_fca3103_drv  import *
 
+# This attribute permits dynamic loading inside wrcalibration class.
+__meas_instr__ = "FCA3103"
+
 class FCA3103(Calibration_instrument) :
     '''
     Class that implements the interface Calibration_instrument for the Tektronix FCA3103.
