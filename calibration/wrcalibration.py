@@ -1,4 +1,4 @@
-!   /usr/bin/env   python3
+#!   /usr/bin/env   python3
 # -*- coding: utf-8 -*
 '''
 Main class for WR Calibration procedure.
@@ -30,6 +30,11 @@ Main class for WR Calibration procedure.
 #-------------------------------------------------------------------------------
 # Import system modules
 import importlib
+import time
+
+# User defined modules
+from main.wrcexceptions import *
+
 
 
 class WR_calibration() :
@@ -61,7 +66,7 @@ class WR_calibration() :
         self.cfg_dict['fiber-latency']['delta2'] = 0
 
         self.cfg_dict['fiber-asymmetry'] = {}
-        self.cfg_dict['fiber-asymmetry']['']
+        self.cfg_dict['port-delay'] = {}
 
     # ------------------------------------------------------------------------ #
 
@@ -72,10 +77,10 @@ class WR_calibration() :
         This methods enables all debugging info for the added devices.
         '''
         self.show_dbg = True
-        for device in devices :
+        for device in self.devices :
             device.show_dbg = True
-        if instr != None :
-            instr.show_dbg = True
+        if self.instr != None :
+            self.instr.show_dbg = True
 
     # ------------------------------------------------------------------------ #
 
@@ -86,14 +91,14 @@ class WR_calibration() :
         This methods disables all debugging info for the added devices.
         '''
         self.show_dbg = False
-        for device in devices :
+        for device in self.devices :
             device.show_dbg = False
-        if instr != None :
-            instr.show_dbg = False
+        if self.instr != None :
+            self.instr.show_dbg = False
 
     # ------------------------------------------------------------------------ #
 
-    def add_device(self, name, device_params) :
+    def add_wr_device(self, name, device_params) :
         '''
         Method to add a WR device (not calibrated).
 
@@ -101,7 +106,7 @@ class WR_calibration() :
         from module wr_devices.
 
         Args:
-            name (str) : The name param must be the name of a WR device controller \
+            name (str) : The name param must be the name of a WR device file \
             located in the folder wr_devices.
             device_params (list) : This variable will be passed to WR device constructor. \
             It is expected that device_params contains 2 items : [interface,port]
@@ -110,9 +115,11 @@ class WR_calibration() :
             DeviceNotFound if name is not a valid WR device name in wr_devices module.
         '''
         try :
-            wr_device = importlib.import_module("wr_devices." % name)
-            class_name = getattr(wr_devices,wr_device.__wrdevice__)
-            devices.append(clasname(device_params[0],device_params[1]))
+            module = "wr_devices.%s" % name
+            wr_device = importlib.import_module(module)
+            name = getattr(wr_device,"__wrdevice__")
+            class_ = getattr(wr_device,name)
+            self.devices.append(class_(device_params[0],device_params[1]))
 
         except ImportError as ierr :
             raise DeviceNotFound(ierr.msg)
@@ -137,9 +144,11 @@ class WR_calibration() :
             DeviceNotFound if name is not a valid WR device name in wr_devices module.
         '''
         try :
-            meas_instr = importlib.import_module("calibration." % name)
-            class_name = getattr(meas_instr,meas_instr.__meas_instr__)
-            instr = clasname(device_params[0],device_params[1])
+            module = "measurement.%s" % name
+            wr_device = importlib.import_module(module)
+            name = getattr(wr_device,"__meas_instr__")
+            class_ = getattr(wr_device,name)
+            self.instr = class_(device_params[0])
 
         except ImportError as ierr :
             raise DeviceNotFound(ierr.msg)
@@ -159,25 +168,52 @@ class WR_calibration() :
             cfg_file(str) : Path to a configuration file.
         '''
         cfg_dict = {}
-        with open(config_file, 'r', encoding='utf-8') as cfg :
+        flag = 0
+        with open(cfg_file, 'r', encoding='utf-8') as cfg :
             for line in cfg :
                 print("line : %s" % line)
+                # Skip date line
                 if line[0] == '#' :
                     continue
+
                 if line[0] == '@' :
                     key = line[1:-1]
+                    if key == 'fiber-latency'   : flag = 1
+                    if key == 'fiber-asymmetry' : flag = 2
+                    if key == 'port-delay'      : flag = 3
                     print("key : %s" % key)
+                    print("flag : %d" % flag)
                     continue
-                alpha = int(line.split(" ")[0].split(":")[1])
-                print("alpha : %d" % alpha)
 
-                dtx = int(line.split(" ")[1].split(":")[1])
-                print("dtx : %d" % dtx)
+                if flag == 1 :
+                    flag = 0
+                    delta1 = float( line.split(" ")[0].split(":")[1] )
+                    print("delta 1 %f" % delta1)
+                    delta2 = float( line.split(" ")[1].split(":")[1][:-1] )
+                    print("delta 2 %f" % delta2)
+                    self.cfg_dict['fiber-latency']['delta1'] = delta1
+                    self.cfg_dict['fiber-latency']['delta2'] = delta2
 
-                drx = int(line.split(" ")[2].split(":")[1])
-                print("drx : %d" % drx)
+                if flag == 2 :
+                    for i in line.split(" ") :
+                        k = i.split(":")[0]
+                        v = i.split(":")[1]
+                        if v[-1] == '\n' :
+                            v = v[:-1]
+                            flag = 0
+                        self.cfg_dict['fiber-asymmetry'][k] = float(v)
 
-                cfg_dict[key] = [alpha,dtx,drx]
+                if flag == 3 :
+                    for i in line.split(" ") :
+                        k = i.split(":")[0]
+                        dtxs = i.split(":")[1].split(",")[0]
+                        drxs = i.split(":")[1].split(",")[1]
+                        if drxs[-1] == '\n' :
+                            drxs = drxs[:-1]
+                            flag = 0
+                        self.cfg_dict['port-delay'][k] = (float(dtxs), float(drxs))
+
+        print("Configuration loaded.")
 
     # ------------------------------------------------------------------------ #
 
@@ -205,13 +241,14 @@ class WR_calibration() :
 
         Raises:
             WRDeviceNeeded
+            PtsError
         '''
         if len(self.devices) < 2 :
             raise WRDeviceNeeded("To measure fiber latency, at least, 2 WR devices are needed.")
 
         # Assign one device as master and the other as slave
-        master = devices[0]
-        slave = devices[1]
+        master = self.devices[0]
+        slave = self.devices[1]
 
         # WR device configuration -----------------------------------
 
@@ -261,7 +298,7 @@ class WR_calibration() :
                 rtt = slave.get_rtt()
                 mean_rtt += rtt
                 time.sleep(t_samples)
-            mean_rtt /= N_SAMPLES
+            mean_rtt /= n_samples
 
             if self.show_dbg :
                 print("Mean rtt : %f" % mean_rtt)
@@ -270,27 +307,116 @@ class WR_calibration() :
             print(delays_dict[fiber])
             rtt_dict[fiber] = mean_rtt
 
-            # As Rx delays are set to 0 in sfp database, the stat values for Rx
-            # are the bitslides
-            delay_mm1 = rtt_dict['f1'] - delays_dict['f1']['master'][1] - delays_dict['f1']['slave'][1]
-            print("delay_mm1 : %f" % delay_mm1)
-            delay_mm2 = rtt_dict['f2'] - delays_dict['f2']['master'][1] - delays_dict['f2']['slave'][1]
-            print("delay_mm2 : %f" % delay_mm2)
-            delay_mm3 = rtt_dict['f1+f2'] - delays_dict['f1+f2']['master'][1] - delays_dict['f1+f2']['slave'][1]
-            print("delay_mm3 : %f" % delay_mm3)
+        # As Rx delays are set to 0 in sfp database, the stat values for Rx
+        # are the bitslides
+        delay_mm1 = rtt_dict['f1'] - delays_dict['f1']['master'][1] - delays_dict['f1']['slave'][1]
+        print("delay_mm1 : %f" % delay_mm1)
+        delay_mm2 = rtt_dict['f2'] - delays_dict['f2']['master'][1] - delays_dict['f2']['slave'][1]
+        print("delay_mm2 : %f" % delay_mm2)
+        delay_mm3 = rtt_dict['f1+f2'] - delays_dict['f1+f2']['master'][1] - delays_dict['f1+f2']['slave'][1]
+        print("delay_mm3 : %f" % delay_mm3)
 
-            delta1 = delay_mm3 - delay_mm2
-            delta2 = delay_mm3 - delay_mm1
+        delta1 = delay_mm3 - delay_mm2
+        delta2 = delay_mm3 - delay_mm1
 
-            self.cfg_dict['fiber_latency'] = [delta1,delta2]
+        self.cfg_dict['fiber-latency']['delta1'] = delta1
+        self.cfg_dict['fiber-latency']['delta2'] = delta2
 
-            print("Fiber latency values : delta1 = %.1f , delta2 =%.1f" %\
-            (delta1,delta2))
+        print("Fiber latency values : delta1 = %.1f , delta2 =%.1f" %\
+        (delta1,delta2))
 
-    def fiber_asymmetry() :
+    # ------------------------------------------------------------------------ #
+
+    def fiber_asymmetry(self, n_samples=10, t_samples=5, port = 1, sfp = "blue") :
         '''
         Method to calculate the fiber asymmetry.
+
+        This method calculates the asymmetry for a
+        This method calculates the fiber asymmetry for a few meters long fiber \
+        (delta_1) and for a few kilometers long (delta_2). First fiber will be
+        called f1 and second one f2.
+        Calculated values where stored in cfg_dict with the key "fiber-latency".
+
+        Args:
+            n_samples (int) : Indicates how many values will be used for computing \
+            stadistics values.
+            t_samples (int) : The time between samples.
+            port (int) : The port used for connecting master to slave.
+            sfp (str) : Indicates which sfp is used in WR slave device.
+
+        Raises:
+            WRDeviceNeeded
+            PtsError
         '''
+        if len(self.devices) < 2 :
+            raise WRDeviceNeeded("To measure fiber latency, at least, 2 WR devices are needed.")
+
+        if instr == None :
+            raise MeasurementInstrumentNeeded("To measure skew between PPS signals \
+            a measurement instrument must be added.")
+
+        # Assign one device as master and the other as slave
+        master = self.devices[0]
+        slave = self.devices[1]
+
+        # WR device configuration -----------------------------------
+
+        # First, set all delays and beta values in sfp database to 0
+        if self.show_dbg :
+            print("Setting initial parameters in WR devices...\n")
+            print("Erasing sfp database...")
+        master.erase_sfp_config()
+        slave.erase_sfp_config()
+
+        if self.show_dbg :
+            print("Writing initial configuration to sfp database...")
+        slave.write_sfp_config("AXGE-1254-0531",1)
+        master.write_sfp_config("AXGE-3454-0531",1)
+        master.load_sfp_config()
+        slave.load_sfp_config()
+        slave.set_slaveport(1)
+        master.set_master()
+
+        if self.show_dbg :
+            print("\nStarting fiber latency measurement procedure.\n")
+
+        # Measure delay between the 2 PPS signals from both WR devices
+        skew = []
+
+        for fiber in FIBERS :
+            print("Please connect both WR devices with fiber %s and press Enter" % (fiber))
+            input()
+            print("Now connect their PPS outputs to the measurement instrument and press Enter")
+            input()
+            time.sleep(1)
+
+            # Wait until servo state in TRANCK PHASE
+            if self.show_dbg :
+                print("Waiting until TRACK PHASE.....")
+
+            while not slave.in_trackphase() :
+                time.sleep(2)
+
+            print("Measuring skew between PPS signals, it should take a long time...")
+            mean_skew = meas_instr.mean_time_interval(N_SAMPLES, TIME_BETWEEN_SAMPLES, in1_trig, in2_trig)
+            skew.append(mean_skew)
+
+        # Calculate alpha and alpha_n -------------------------
+
+        # Pass time measures from s to ps
+        skew[0] = skew[0] * 1e12
+        skew[1] = skew[1] * 1e12
+        if self.show_dbg :
+            print("Mean skew master to slave with f1: %G" % skew[0])
+            print("Mean skew master to slave with f2: %G" % skew[1])
+
+        dif = skew[1] - skew[0]
+        alpha = ( 2 * dif ) / ( 0.5 * delta_2 - dif )
+        alpha_n = pow(2,40) * ( ((alpha+1)/(alpha+2)) - 0.5 )
+        self.cfg_dict['fiber-asymmetry']["%s-wr%d"%(sfp,port)] = alpha_n
+        print("Fiber asymmetry value for port %d and sfp %s = %d" % (port,sfp,alpha_n))
+
+    # ------------------------------------------------------------------------ #
 
     def calibrate_device_port() :
         '''
