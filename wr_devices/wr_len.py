@@ -306,9 +306,12 @@ class WR_LEN(WR_Device) :
         Raises:
             NotValidPort when port doesn't exists in the used device.
         '''
-        if port != 1 && port != 2 :
+        if port != 1 and port != 2 :
             raise NotValidPort("WR LEN haven't got %d ports." % port)
         self.bus.cmd_w("mode slave_port%d" % port)
+        time.sleep(self.DEF_TIMEOUT)
+        self.bus.cmd_w("ptp start")
+        time.sleep(self.DEF_TIMEOUT)
 
         if self.show_dbg :
             print("%s << %s" % (self.name,"mode slave_port%d"%port))
@@ -322,6 +325,8 @@ class WR_LEN(WR_Device) :
         '''
         self.bus.cmd_w("mode master")
         time.sleep(self.DEF_TIMEOUT*2) # Looking PLL takes some time
+        self.bus.cmd_w("ptp start")
+        time.sleep(self.DEF_TIMEOUT)
 
         if self.show_dbg :
             print("%s << %s" % (self.name,"mode master"))
