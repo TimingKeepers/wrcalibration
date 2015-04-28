@@ -49,9 +49,9 @@ class FCA3103(Calibration_instrument) :
     '''
 
     ## Number of samples
-    n_samples = 20
+    n_samples = 5
     ## Time between samples (s)
-    t_samples = 1
+    t_samples = 0.5
     ## Enable debug message output
     show_dbg = False
 
@@ -233,9 +233,9 @@ class FCA3103(Calibration_instrument) :
         time.sleep(0.5)
         self.drv.write("INPUT2:LEVEL:AUTO OFF")
         time.sleep(0.5)
-        self.drv.write("INPUT1:LEVEL %1.3f" % self.trigger_level[0])
+        self.drv.write("INPUT1:LEVEL %1.3f" % self.trig_level[0])
         time.sleep(0.5)
-        self.drv.write("INPUT2:LEVEL %1.3f" % self.trigger_level[1])
+        self.drv.write("INPUT2:LEVEL %1.3f" % self.trig_level[1])
         time.sleep(0.5)
 
         # Measures format (ASCII with time stamping disabled)

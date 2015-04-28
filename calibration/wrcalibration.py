@@ -171,7 +171,6 @@ class WR_calibration() :
         flag = 0
         with open(cfg_file, 'r', encoding='utf-8') as cfg :
             for line in cfg :
-                print("line : %s" % line)
                 # Skip date line
                 if line[0] == '#' :
                     continue
@@ -181,8 +180,6 @@ class WR_calibration() :
                     if key == 'fiber-latency'   : flag = 1
                     if key == 'fiber-asymmetry' : flag = 2
                     if key == 'port-delay'      : flag = 3
-                    print("key : %s" % key)
-                    print("flag : %d" % flag)
                     continue
 
                 if flag == 1 :
@@ -241,7 +238,6 @@ class WR_calibration() :
 
         Raises:
             WRDeviceNeeded
-            PtsError
         '''
         if len(self.devices) < 2 :
             raise WRDeviceNeeded("To measure fiber latency, at least, 2 WR devices are needed.")
@@ -321,9 +317,7 @@ class WR_calibration() :
 
         self.cfg_dict['fiber-latency']['delta1'] = delta1
         self.cfg_dict['fiber-latency']['delta2'] = delta2
-
-        print("Fiber latency values : delta1 = %.1f , delta2 =%.1f" %\
-        (delta1,delta2))
+        print("Fiber latency : delta1 = %f , delta2 = %f" % (delta1,delta2))
 
     # ------------------------------------------------------------------------ #
 
@@ -345,15 +339,18 @@ class WR_calibration() :
             sfp (str) : Indicates which sfp is used in WR slave device.
 
         Raises:
-            WRDeviceNeeded
-            PtsError
+            ValueError if master_chan or slave_chan are not set.
+            TriggerNotSet if trigger levels are not set.
+            MeasuringError if a time interval value is higher than expected.
         '''
         if len(self.devices) < 2 :
             raise WRDeviceNeeded("To measure fiber latency, at least, 2 WR devices are needed.")
 
-        if instr == None :
-            raise MeasurementInstrumentNeeded("To measure skew between PPS signals \
-            a measurement instrument must be added.")
+        if self.instr == None :
+            raise MeasurementInstrumentNeeded("To measure skew between PPS signals a measurement instrument must be added.")
+
+        if self.cfg_dict['fiber-latency']['delta1'] == 0 :
+            raise FiberLatencyNeeded("A valid fiber latency values are needed to use this method.")
 
         # Assign one device as master and the other as slave
         master = self.devices[0]
@@ -383,7 +380,9 @@ class WR_calibration() :
         # Measure delay between the 2 PPS signals from both WR devices
         skew = []
 
-        for fiber in FIBERS :
+        for fiber in self.fibers :
+            if fiber == 'f1+f2' : continue
+
             print("Please connect both WR devices with fiber %s and press Enter" % (fiber))
             input()
             print("Now connect their PPS outputs to the measurement instrument and press Enter")
@@ -398,7 +397,9 @@ class WR_calibration() :
                 time.sleep(2)
 
             print("Measuring skew between PPS signals, it should take a long time...")
-            mean_skew = meas_instr.mean_time_interval(N_SAMPLES, TIME_BETWEEN_SAMPLES, in1_trig, in2_trig)
+            mean_skew = self.instr.mean_time_interval(n_samples, t_samples)
+            if mean_skew >= 1e-6 :
+                raise MeasuringError("Time interval between input 1 and 2 is more than expected. Are the input channels adequately connected?")
             skew.append(mean_skew)
 
         # Calculate alpha and alpha_n -------------------------
@@ -411,8 +412,12 @@ class WR_calibration() :
             print("Mean skew master to slave with f2: %G" % skew[1])
 
         dif = skew[1] - skew[0]
+        delta_1 = self.cfg_dict['fiber-latency']['delta1']
+        delta_2 = self.cfg_dict['fiber-latency']['delta2']
         alpha = ( 2 * dif ) / ( 0.5 * delta_2 - dif )
         alpha_n = pow(2,40) * ( ((alpha+1)/(alpha+2)) - 0.5 )
+        # When measuring with violet sfp in the slave device, it's needed change the sign
+        if sfp == "violet" : alpha_n = alpha_n * -1
         self.cfg_dict['fiber-asymmetry']["%s-wr%d"%(sfp,port)] = alpha_n
         print("Fiber asymmetry value for port %d and sfp %s = %d" % (port,sfp,alpha_n))
 
