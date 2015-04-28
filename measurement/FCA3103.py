@@ -67,24 +67,26 @@ class FCA3103(Calibration_instrument) :
         self.drv = FCA3103_drv(port)
         self.master_chan = master_chan
         self.slave_chan = slave_chan
+        self.trig_level = [None, ] *2 # This device has 2 input channels.
 
     # ------------------------------------------------------------------------ #
 
     def trigger_level(self, v_min=0, v_max=5) :
         '''
-        Method to determine a good trigger level for each input channel.
+        Method to determine a good trigger level for a input channel.
 
         It's important to run this method at least once before doing any
         measurement for achieving good time interval measures.
+
+        Ensure that 2 WR devices are connected and servo state is TRACK PHASE.
 
         Args:
             v_min (float) : Minimum voltage level for the input signal
             v_max (float) : Maximum voltage level for the input signal
 
-        Returns a float tuple with the trigger level for input channel 1 and 2.
-
         Raises:
             ValueError if master_chan or slave_chan are not set.
+            NotADevicePort if input is a invalid input channel for this device.
         '''
         if self.master_chan == None :
             raise ValueError("FCA3103 ERROR: Master input channel not set.")
@@ -143,7 +145,7 @@ class FCA3103(Calibration_instrument) :
         trig_levels = {}
 
         if self.show_dbg :
-            print("Testing trigger level values...")
+            print("Testing trigger level values, it should take a long time ...")
 
         for i in v_array :
             mean = 0
@@ -170,12 +172,13 @@ class FCA3103(Calibration_instrument) :
                 min = abs(trig_levels[key])
                 min_key = key
 
-        return min_key
-
+        self.trig_level[0] = min_key
+        self.trig_level[1] = min_key
+        print("Trigger level set at %f volts." % (min_key))
 
     # ------------------------------------------------------------------------ #
 
-    def mean_time_interval(self, n_samples, t_samples, input1_trig, input2_trig) :
+    def mean_time_interval(self, n_samples, t_samples) :
         '''
         Abstract method to measure time interval between two input signals.
 
@@ -230,9 +233,9 @@ class FCA3103(Calibration_instrument) :
         time.sleep(0.5)
         self.drv.write("INPUT2:LEVEL:AUTO OFF")
         time.sleep(0.5)
-        self.drv.write("INPUT1:LEVEL %1.3f" % input1_trig)
+        self.drv.write("INPUT1:LEVEL %1.3f" % self.trigger_level[0])
         time.sleep(0.5)
-        self.drv.write("INPUT2:LEVEL %1.3f" % input2_trig)
+        self.drv.write("INPUT2:LEVEL %1.3f" % self.trigger_level[1])
         time.sleep(0.5)
 
         # Measures format (ASCII with time stamping disabled)

@@ -76,6 +76,8 @@ class Calibration_instrument() :
         It's important to run this method at least once before doing any
         measurement for achieving good time interval measures.
 
+        Ensure that 2 WR devices are connected and servo state is TRACK PHASE.
+
         Args:
             v_min (float) : Minimum voltage level for the input signal
             v_max (float) : Maximum voltage level for the input signal
@@ -108,4 +110,5 @@ class Calibration_instrument() :
         Raises:
             ValueError if master_chan or slave_chan are not set.
             TriggerNotSet if trigger levels are not set.
+            MeasuringError if a time interval value is higher than expected.
         '''
