@@ -50,6 +50,8 @@ class Calibration_instrument() :
     slave_chan  = ""
     ## The input channel for the master signal
     master_chan = ""
+    ## Trigger level array. Each position i stores the trigger level for the input i.
+    trigger_level = []
 
     # The following methods must be implemented by a concrete class for a WR device.
 
@@ -69,25 +71,24 @@ class Calibration_instrument() :
     @abc.abstractmethod
     def trigger_level(self, v_min=0, v_max=5) :
         '''
-        Abstract method to determine a good trigger level for each input channel.
+        Abstract method to determine a good trigger level for a input channel.
 
-        Before using this method, master_chan and slave_chan must be set.
+        It's important to run this method at least once before doing any
+        measurement for achieving good time interval measures.
 
         Args:
             v_min (float) : Minimum voltage level for the input signal
             v_max (float) : Maximum voltage level for the input signal
 
-        Returns:
-            A float tuple with the trigger level for input channel 1 and 2.
-
         Raises:
             ValueError if master_chan or slave_chan are not set.
+            InputNotSet if input channels are not set.
         '''
 
     # ------------------------------------------------------------------------ #
 
     @abc.abstractmethod
-    def mean_time_interval(self, n_samples, t_samples, input1_trig, input2_trig) :
+    def mean_time_interval(self, n_samples, t_samples) :
         '''
         Abstract method to measure time interval between two input signals.
 
@@ -100,12 +101,11 @@ class Calibration_instrument() :
         Args:
             n_samples (int) : Number of measures to be done.
             t_samples (int) : Time between samples (should be greater than 1ms)
-            input1_trig (float) : Trigger level for the input 1
-            input2_trig (float) : Trigger level for the input 2
 
         Returns:
             The mean time interval master to slave.
 
         Raises:
             ValueError if master_chan or slave_chan are not set.
+            TriggerNotSet if trigger levels are not set.
         '''
