@@ -74,6 +74,14 @@ class WR_LEN(WR_Device) :
 
     # ------------------------------------------------------------------------ #
 
+    def close(self) :
+        '''
+        Close bus connection to WR LEN
+        '''
+        self.bus.close()
+
+    # ------------------------------------------------------------------------ #
+
     def write_sfp_config(self, sfp_sn, port, delta_tx = 0, delta_rx = 0, beta = 0) :
         '''
         Method to write the calibration configuration for a SFP

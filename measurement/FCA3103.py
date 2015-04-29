@@ -54,6 +54,10 @@ class FCA3103(Calibration_instrument) :
     t_samples = 0.5
     ## Enable debug message output
     show_dbg = False
+    ## If a value is far from mean value don't use it
+    skip_values = False
+    ## Error value, used for skip a value (in ps)
+    error = 500000
 
     def __init__(self, port, master_chan=None, slave_chan=None) :
         '''
@@ -68,6 +72,8 @@ class FCA3103(Calibration_instrument) :
         self.master_chan = master_chan
         self.slave_chan = slave_chan
         self.trig_level = [None, ] *2 # This device has 2 input channels.
+        self.trig_level[0] = None
+        self.trig_level[1] = None
 
     # ------------------------------------------------------------------------ #
 
@@ -194,12 +200,16 @@ class FCA3103(Calibration_instrument) :
             The mean value of the N samples.
 
         Raises:
-            ValueError if master_chan or slave_chan are not set.
+            ValueError if master_chan or slave_chan are not set or trigger level not set.
         '''
         if self.master_chan == None :
             raise ValueError("FCA3103 ERROR: Master input channel not set.")
         if self.slave_chan == None :
             raise ValueError("FCA3103 ERROR: Slave input channel not set.")
+
+        if self.trig_level[0] == None or \
+        self.trig_level[1] == None :
+            raise ValueError("FCA3103 ERROR: Trigger level not set.")
 
         # Initial device configuration --------------------
 
@@ -255,14 +265,16 @@ class FCA3103(Calibration_instrument) :
         for i in range(n_samples) :
             # READ? command is equivalente to ABORT;INITIATE;FETCH?:
             cur = float(self.drv.query("READ?"))
+            if cur > mean + self.error :
+                if self.skip_values :
+                    continue
+                else :
+                    raise MeasureError("FCA3103 ERROR: current value far from mean value : %f (%f)" % (cur,mean))
             mean += cur
 
             if self.show_dbg :
                 print("%s TINT: %g" % (self.drv.device, cur))
             time.sleep(t_samples)
         mean /= n_samples
-
-        print(mean)
-        print(type(mean))
 
         return mean

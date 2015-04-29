@@ -31,6 +31,7 @@ Main class for WR Calibration procedure.
 # Import system modules
 import importlib
 import time
+from datetime import date
 
 # User defined modules
 from main.wrcexceptions import *
@@ -126,6 +127,20 @@ class WR_calibration() :
 
     # ------------------------------------------------------------------------ #
 
+    def remove_wr_devices(self) :
+        '''
+        Method to remove all attached WR Devices.
+        '''
+        if self.show_dbg :
+            print("%d devices removed." % len(self.devices))
+        for d in self.devices :
+            d.close()
+
+        self.devices = []
+
+
+    # ------------------------------------------------------------------------ #
+
     def add_meas_instr(self, name, device_params) :
         '''
         Method to add a Measurement instrument.
@@ -214,11 +229,21 @@ class WR_calibration() :
 
     # ------------------------------------------------------------------------ #
 
-    def write_config(self) :
+    def write_config(self, out_file) :
         '''
         Method to store obtained calibration configuration to a file.
+
+        Args:
+            out_file (str) : The name for the output file. If the file exists it
+            will be overwrited.
         '''
-        pass
+        with open(out_file, 'w', encoding='utf-8') as out :
+            date = datetime.strptime("")
+            # Write time reference
+            # out.write("#%s"%date)
+
+
+
 
     # ------------------------------------------------------------------------ #
 
@@ -342,6 +367,7 @@ class WR_calibration() :
             ValueError if master_chan or slave_chan are not set.
             TriggerNotSet if trigger levels are not set.
             MeasuringError if a time interval value is higher than expected.
+            FiberLatencyNeeded if no previous fiber latency measure is done.
         '''
         if len(self.devices) < 2 :
             raise WRDeviceNeeded("To measure fiber latency, at least, 2 WR devices are needed.")
@@ -398,6 +424,8 @@ class WR_calibration() :
 
             print("Measuring skew between PPS signals, it should take a long time...")
             mean_skew = self.instr.mean_time_interval(n_samples, t_samples)
+            # Change the sign becuase it's needed slave to master
+            mean_skew *= -1
             if mean_skew >= 1e-6 :
                 raise MeasuringError("Time interval between input 1 and 2 is more than expected. Are the input channels adequately connected?")
             skew.append(mean_skew)
@@ -423,7 +451,143 @@ class WR_calibration() :
 
     # ------------------------------------------------------------------------ #
 
-    def calibrate_device_port() :
+    def calibrate_device_port(self, error, n_samples=10, t_samples=5, port = 1, sfp = "blue") :
         '''
         Method to calibrate a port for a WR device.
+
+        This method will measure time delay between the PPS of a WR Device previously
+        calibrated and the PPS of a uncalibrated device and will calculate Rx and
+        Tx delay values.
+
+        A WR Calibrator is needed, also you must use a fiber with latency and
+        asymmetry parameters known.
+        For avoiding problems, keep only a WR Device connected before calling this method.
+
+        Args:
+            error (float) : The minimal time difference accepted (in s). It will depend of the \
+            measuring instrument.
+            n_samples (int) : Indicates how many values will be used for computing \
+            stadistics values.
+            t_samples (int) : The time between samples.
+            port (int) : The port used for connecting master to slave.
+            sfp (str) : Indicates which sfp is used in WR slave device.
+
+        Raises:
+            WRDeviceNeeded if a slave device is not connected.
+            ValueError if master_chan or slave_chan of the instrument are not set.
+            TriggerNotSet if trigger levels are not set.
+            MeasuringError if a time interval value is higher than expected.
+            FiberLatencyNeeded if no previous fiber latency measure is done.
+            FiberAsymmetryNeeded if no previous fiber asymmetry measure is done.
         '''
+        if len(self.devices) < 1 :
+            raise WRDeviceNeeded("To measure fiber latency, at least, 2 WR devices are needed.")
+
+        if self.instr == None :
+            raise MeasurementInstrumentNeeded("To measure skew between PPS signals a measurement instrument must be added.")
+
+        if self.cfg_dict['fiber-latency']['delta1'] == 0 :
+            raise FiberLatencyNeeded("A valid fiber latency values are needed to use this method.")
+
+        key = "%s-wr%d"%(sfp,port)
+        if key not in self.cfg_dict['fiber-asymmetry'] :
+            raise FiberLatencyNeeded("Fiber asymmetry value for port %d and sfp %s is needed." % (port,sfp))
+
+        # Assign the device that will be calibrated
+        slave = self.devices[0]
+
+        # WR device configuration -----------------------------------
+
+        # First, set dTx and Rx to 0, and beta to a previously measured value.
+        if self.show_dbg :
+            print("Setting initial parameters in WR devices...\n")
+            print("Erasing sfp database...")
+        slave.erase_sfp_config()
+
+        if self.show_dbg :
+            print("Writing initial configuration to sfp database...")
+        if sfp == "blue" :
+            sfp_sn = "AXGE-1254-0531"
+        else : sfp_sn = "AXGE-3454-0531"
+        key = "%s-wr%d"%(sfp,port)
+        beta = self.cfg_dict['fiber-asymmetry'][key]
+        slave.write_sfp_config(sfp_sn, port, 0, 0, beta)
+        slave.load_sfp_config()
+        slave.set_slaveport(port)
+
+        input("Pleasse connect the WR calibrator to the uncalibrated device with fiber f1 and press Enter")
+        if self.show_dbg :
+            print("\nStarting device calibration procedure.\n")
+
+        # Wait until servo state in TRANCK PHASE
+        if self.show_dbg :
+            print("Waiting until TRACK PHASE.....")
+        while not slave.in_trackphase() :
+            time.sleep(2)
+
+        if self.show_dbg :
+            print("Calculating coarse Tx and Rx delays ...")
+        mean_rtt = 0
+        for i in range(n_samples) :
+            rtt = slave.get_rtt()
+            mean_rtt += rtt
+            time.sleep(t_samples)
+        mean_rtt /= n_samples
+
+        delays_dict = slave.get_phy_delays()
+        dtxm = delays_dict['master'][0]
+        drxm = delays_dict['master'][1]
+        bitslide = delays_dict['slave'][1]
+        delta1 = self.cfg_dict['fiber-latency']['delta1']
+
+        coarse_delays = 0.5 * ( mean_rtt - dtxm - drxm - bitslide - delta1 )
+
+        slave.erase_sfp_config()
+        slave.write_sfp_config(sfp_sn, port, coarse_delays, coarse_delays, beta)
+        slave.load_sfp_config()
+
+        if self.show_dbg :
+            print("Coarse transmission and reception delays = %d" % coarse_delays)
+        print("Calibrating device ...")
+
+        # Keep adjusting delays, while the skew is higher than error.
+        # A iteration limit is set for avoiding a infinite loop.
+        times = 10
+        i = 0
+        mean_skew = 1e10
+        old_dtxs = coarse_delays
+        old_drxs = coarse_delays
+
+        while abs(mean_skew) > error and i < times:
+            # Wait until servo state in TRANCK PHASE
+            if self.show_dbg :
+                print("Waiting until TRACK PHASE.....")
+
+            while not slave.in_trackphase() :
+                time.sleep(2)
+
+            print("Measuring skew between PPS signals, it should take a long time...")
+            mean_skew = self.instr.mean_time_interval(n_samples, t_samples)
+
+            # Write the new delay value
+            # mean_skew must be in ps
+            mean_skew *= 1e12
+            print("skew = %f" % mean_skew)
+            dtxs = old_dtxs - mean_skew
+            drxs = old_drxs + mean_skew
+
+            if self.show_dbg :
+                print("Writing current delays %d,%d to sfp database..." % (dtxs,drxs))
+            slave.erase_sfp_config()
+            slave.write_sfp_config(sfp_sn, port, dtxs, drxs, beta)
+            slave.load_sfp_config()
+            old_dtxs = dtxs
+            old_drxs = drxs
+
+            i += 1
+
+        # Store measured delay values
+        self.cfg_dict['port-delay'][key] = (dtxs,drxs)
+        print("Port calibrated.")
+        if self.show_dbg :
+            print("dtxs = %d , drxs = %d, final skew = %f" % (dtxs,drxs,mean_skew))
