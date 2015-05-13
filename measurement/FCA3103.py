@@ -221,7 +221,8 @@ class FCA3103(Calibration_instrument) :
         self.drv.write("INIT:CONT OFF")
 
         # Configure the measure to be performed
-        self.drv.write("CONFIGURE:TINTERVAL (@%d),(@%d)" % (self.master_chan,self.slave_chan))
+        # Skew between the slave and master
+        self.drv.write("CONFIGURE:TINTERVAL (@%d),(@%d)" % (self.slave_chan,self.master_chan))
 
         # Take one sample
         self.drv.write("TRIG:COUNT 1;:ARM:COUNT 1")
