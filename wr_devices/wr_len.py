@@ -35,6 +35,7 @@ import re
 # User modules
 from pts_core.bridges.wb_uart import *
 from wr_devices.wr_device     import *
+from main.wrcexceptions       import *
 
 # This attribute permits dynamic loading inside wrcalibration class.
 __wrdevice__ = "WR_LEN"
@@ -314,7 +315,7 @@ class WR_LEN(WR_Device) :
         Raises:
             NotValidPort when port doesn't exists in the used device.
         '''
-        if port != 1 and port != 2 :
+        if port < 1 and port > 2 :
             raise NotValidPort("WR LEN haven't got %d ports." % port)
         self.bus.cmd_w("mode slave_port%d" % port)
         time.sleep(self.DEF_TIMEOUT)

@@ -15,7 +15,7 @@ class WRDeviceNeeded(Exception) :
     pass
 
 class NotValidPort(Exception) :
-    '''The device haven't got the port'''
+    '''The device hasn't got the port'''
     pass
 
 class WRDeviceNeeded(Exception) :

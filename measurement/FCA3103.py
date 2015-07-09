@@ -119,7 +119,7 @@ class FCA3103(Calibration_instrument) :
 
         # Configure the measure to be performed
         self.drv.write("CONFIGURE:TINTERVAL (@%d),(@%d)" % \
-        (self.master_chan,self.slave_chan))
+        (self.slave_chan,self.master_chan))
 
         # Take one sample, really needed?
         self.drv.write("TRIG:COUNT 1;:ARM:COUNT 1")
