@@ -33,7 +33,7 @@ import time
 import re
 
 # User modules
-from pts_core.bridges.wb_uart import *
+from drivers.serial           import *
 from wr_devices.wr_device     import *
 from main.wrcexceptions       import *
 
@@ -66,7 +66,7 @@ class WR_LEN(WR_Device) :
 
         #TODO: Utilizar excepciones aquí
         #try :
-        self.bus = wb_UART(rdtimeout=0.1, wrtimeout=0.1, interchartimeout=0.01)
+        self.bus = serial_drvr(rdtimeout=0.1, wrtimeout=0.1, interchartimeout=0.01)
         self.bus.open(self.port)
 
         self.show_dbg = False
